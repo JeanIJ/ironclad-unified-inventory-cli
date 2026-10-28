@@ -1,16 +1,16 @@
 # Ironclad Unified Inventory CLI
 
-**CodeYou SecOps Assignment 9** — a command-line inventory that pulls assets from NetBox, Qualys, and CrowdStrike and presents them as one normalized list.
+**CodeYou SecOps Assignment 9** — a command-line inventory that pulls assets from NetBox, Qualys, and CrowdStrike into one list.
 
 ## Description
 
-Ironclad Analytics tracks assets in three systems that do not share a schema:
+Ironclad Analytics tracks assets in three systems. Their fields do not match:
 
 - **NetBox** — network and infrastructure devices
 - **Qualys** — vulnerability-scanner asset records
 - **CrowdStrike** — endpoint and EDR sensor records
 
-This CLI is the translation layer. Each source adapter maps its records into a single `Asset` model so an analyst can pull, list, filter, search, and summarize inventory from one place.
+Each adapter maps its records to one `Asset` model. You can pull, list, filter, search, and summarize inventory from one place.
 
 ## Tech
 
@@ -91,7 +91,7 @@ python main.py search --query "Windows 11" --source all --limit 500
 
 ### Find by IP
 
-Exact match on `ip_address` for the inventories selected by `--source`.
+Exact match on `ip_address` for the sources you pass with `--source`.
 
 ```bash
 python main.py find-ip --ip 147.149.196.21
@@ -123,7 +123,7 @@ A table row looks like this:
 
 ## Status
 
-The Assignment 9 CLI in this repository implements:
+This CLI can:
 
 - Pull from one source or all three, then print per-source counts
 - List filters: `--os`, `--environment`, and `--owner`
@@ -131,14 +131,14 @@ The Assignment 9 CLI in this repository implements:
 - Table and JSON output
 - Find by exact IP
 
-Inventory is read from the course Mockaroo endpoints. This tool does not connect to production NetBox, Qualys, or CrowdStrike tenants. Qualys records have no owner field, and CrowdStrike records have no environment field, so those `Asset` values stay empty for those sources.
+Inventory comes from the course Mockaroo endpoints. It does not connect to production NetBox, Qualys, or CrowdStrike. Qualys records have no owner field, and CrowdStrike records have no environment field, so those `Asset` values stay empty for those sources.
 
 ## Project structure
 
 ```text
 ironclad-unified-inventory-cli/
 ├── main.py                 # CLI entry point (argparse)
-├── asset.py                # Universal Asset model
+├── asset.py                # shared Asset model
 ├── inventory_source.py     # Base class and three source adapters
 ├── inventory_manager.py    # Pull, list, search, find-by-IP, and stats
 └── README.md
@@ -181,7 +181,7 @@ ironclad-unified-inventory-cli/
 
 ## Example output
 
-Counts below are sample runs against the mock inventory. Live totals change when the source data changes.
+Counts below are from sample runs on the mock inventory. Totals change when that data changes.
 
 Pull:
 
