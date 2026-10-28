@@ -1,55 +1,59 @@
 # Ironclad Unified Inventory CLI
 
-## Overview
+**CodeYou SecOps Assignment 9** — a command-line inventory that pulls assets from NetBox, Qualys, and CrowdStrike and presents them as one normalized list.
 
-This tool unifies asset inventory across three security systems at Ironclad
-Analytics:
+## Description
 
-* **NetBox** — network/infrastructure perspective
-* **Qualys** — vulnerability/asset risk perspective
-* **CrowdStrike** — endpoint/EDR perspective
-  Each acquisition brought its own asset-tracking system with different schemas. This
-  CLI acts as a translation layer, normalizing all records into a single internal
-  `Asset` model and enabling analysts to pull, list, search, and summarize inventory
-  without switching platforms.
+Ironclad Analytics tracks assets in three systems that do not share a schema:
 
----
+- **NetBox** — network and infrastructure devices
+- **Qualys** — vulnerability-scanner asset records
+- **CrowdStrike** — endpoint and EDR sensor records
 
-## Project Structure
+This CLI is the translation layer. Each source adapter maps its records into a single `Asset` model so an analyst can pull, list, filter, search, and summarize inventory from one place.
 
-```text
-soc-assignment-9/
-├── main.py # CLI entry point (argparse)
-├── asset.py # Universal Asset model
-├── inventory_source.py # Base class + 3 source adapters
-├── inventory_manager.py # Orchestrates pull/list/search/stats
-└── README.md # This file
-```
+## Tech
 
----
+| Piece | Detail |
+| --- | --- |
+| Language | Python 3.10+ (`list[...]` and `str \| None` type hints) |
+| CLI | `argparse` (standard library) |
+| HTTP | `requests` |
+| Auth | `IRONCLAD_API_KEY` environment variable, sent as the `X-API-Key` header |
+| Sources | Mockaroo JSON endpoints for NetBox, Qualys, and CrowdStrike |
+
+Modules:
+
+- `main.py` — CLI entry point
+- `asset.py` — shared `Asset` model
+- `inventory_source.py` — base client and the three source adapters
+- `inventory_manager.py` — pull, list, search, find-by-IP, and stats
 
 ## Setup
 
-### 1. Create virtual environment and install dependencies
+Python 3.10 or newer is required. Commands that fetch inventory need network access to the Mockaroo endpoints.
 
 ```bash
-cd ~/Documents/CodeYou_Projects/soc-assignment-9
+git clone https://github.com/JeanIJ/ironclad-unified-inventory-cli.git
+cd ironclad-unified-inventory-cli
 python3 -m venv venv
 source venv/bin/activate
 pip install requests
 ```
 
-### 2. Set API key
+Set the API key in the environment before running a command. Use your own key. Do not commit a real key.
 
 ```bash
-export IRONCLAD_API_KEY=cf7bbbd0
+export IRONCLAD_API_KEY=your_key_here
 ```
 
----
+## Usage
 
-## How to Run Each CLI Command
+Run these commands from the repository root with the virtual environment activated. `--source` accepts `netbox`, `qualys`, `crowdstrike`, or `all` (the default).
 
-### Pull inventory from one or all sources
+### Pull
+
+Download inventory and print counts.
 
 ```bash
 python main.py pull --source all
@@ -58,40 +62,52 @@ python main.py pull --source qualys
 python main.py pull --source crowdstrike
 ```
 
-### List assets (with optional filters)
+### List
+
+Print assets. Optional filters are case-insensitive partial matches.
 
 ```bash
 python main.py list --source all
-python main.py list --source netbox
 python main.py list --source netbox --os Windows
 python main.py list --source all --environment prod --owner HR
 ```
 
-### Search assets by keyword across all fields
+| Flag | Effect |
+| --- | --- |
+| `--os` | Operating system contains this text |
+| `--environment` | Environment contains this text |
+| `--owner` | Owner context contains this text |
+
+### Search
+
+Match a keyword against asset id, hostname, IP, OS, environment, owner, and source.
 
 ```bash
 python main.py search --query windows --source all
-python main.py search --query "Windows 11" --source all
 python main.py search --query "Windows 11" --source all --limit 500
 ```
 
-### Find asset by exact IP address
+`--limit` defaults to 50. The `Results:` line is the full match count. Only the first `--limit` rows are printed.
+
+### Find by IP
+
+Exact match on `ip_address` for the inventories selected by `--source`.
 
 ```bash
 python main.py find-ip --ip 147.149.196.21
 python main.py find-ip --ip 147.149.196.21 --source all
 ```
 
-### Show inventory statistics
+### Stats
 
 ```bash
 python main.py stats --source all
 python main.py stats --source netbox
 ```
 
-### Output formats
+### Output format
 
-Add `--format json` to list, search, or find-ip for JSON output:
+`list`, `search`, and `find-ip` accept `--format table` (default) or `--format json`.
 
 ```bash
 python main.py list --source netbox --format json
@@ -99,135 +115,125 @@ python main.py search --query windows --source all --format json
 python main.py find-ip --ip 147.149.196.21 --format json
 ```
 
----
+A table row looks like this:
 
-## Schema Field Mapping Notes
+```text
+[netbox] web-752 ip=147.149.196.21 os=Windows env=dev owner=HR
+```
+
+## Status
+
+The Assignment 9 CLI in this repository implements:
+
+- Pull from one source or all three, then print per-source counts
+- List filters: `--os`, `--environment`, and `--owner`
+- Keyword search with `--limit`
+- Table and JSON output
+- Find by exact IP
+
+Inventory is read from the course Mockaroo endpoints. This tool does not connect to production NetBox, Qualys, or CrowdStrike tenants. Qualys records have no owner field, and CrowdStrike records have no environment field, so those `Asset` values stay empty for those sources.
+
+## Project structure
+
+```text
+ironclad-unified-inventory-cli/
+├── main.py                 # CLI entry point (argparse)
+├── asset.py                # Universal Asset model
+├── inventory_source.py     # Base class and three source adapters
+├── inventory_manager.py    # Pull, list, search, find-by-IP, and stats
+└── README.md
+```
+
+## Schema field mapping
 
 ### NetBox → Asset
 
-| NetBox Field    | Asset Field       | Rationale                            |
-| :-------------- | :---------------- | :----------------------------------- |
-| `id`          | `asset_id`      | Unique device identifier in NetBox   |
-| `device_name` | `hostname`      | Canonical name of the device         |
-| `primary_ip`  | `ip_address`    | Primary IP assigned to the device    |
-| `platform`    | `os`            | Operating system or network platform |
-| `environment` | `environment`   | Dev/staging/prod context             |
-| `tenant`      | `owner_context` | Organizational owner or team         |
+| NetBox field | Asset field | Notes |
+| --- | --- | --- |
+| `id` | `asset_id` | Device identifier |
+| `device_name` | `hostname` | Device name |
+| `primary_ip` | `ip_address` | Primary IP |
+| `platform` | `os` | OS or network platform |
+| `environment` | `environment` | Dev, staging, or prod |
+| `tenant` | `owner_context` | Owning team or tenant |
 
 ### Qualys → Asset
 
-| Qualys Field         | Asset Field       | Rationale                               |
-| :------------------- | :---------------- | :-------------------------------------- |
-| `asset_id`         | `asset_id`      | UUID assigned by Qualys scanner         |
-| `hostname`         | `hostname`      | DNS or reported hostname                |
-| `ip_address`       | `ip_address`    | IP detected during scan                 |
-| `operating_system` | `os`            | OS fingerprint from scan                |
-| `asset_group`      | `environment`   | Logical grouping maps to environment    |
-| *(none)*           | `owner_context` | Qualys schema has no direct owner field |
+| Qualys field | Asset field | Notes |
+| --- | --- | --- |
+| `asset_id` | `asset_id` | Scanner asset id |
+| `hostname` | `hostname` | Reported hostname |
+| `ip_address` | `ip_address` | IP seen in the scan |
+| `operating_system` | `os` | OS fingerprint |
+| `asset_group` | `environment` | Asset group used as environment |
+| *(none)* | `owner_context` | No owner field in the Qualys payload |
 
 ### CrowdStrike → Asset
 
-| CrowdStrike Field  | Asset Field       | Rationale                                  |
-| :----------------- | :---------------- | :----------------------------------------- |
-| `sensor_id`      | `asset_id`      | EDR sensor UUID                            |
-| `hostname`       | `hostname`      | Endpoint hostname                          |
-| `local_ip`       | `ip_address`    | Local network IP (chosen over external_ip) |
-| `os_version`     | `os`            | OS version reported by sensor              |
-| *(none)*         | `environment`   | CrowdStrike schema has no direct env field |
-| `logged_in_user` | `owner_context` | Current user as proxy for ownership        |
+| CrowdStrike field | Asset field | Notes |
+| --- | --- | --- |
+| `sensor_id` | `asset_id` | EDR sensor id |
+| `hostname` | `hostname` | Endpoint hostname |
+| `local_ip` | `ip_address` | Local IP, not the external IP |
+| `os_version` | `os` | OS version reported by the sensor |
+| *(none)* | `environment` | No environment field in the payload |
+| `logged_in_user` | `owner_context` | Signed-in user as the owner proxy |
 
----
+## Example output
 
-## Completed Challenges
+Counts below are sample runs against the mock inventory. Live totals change when the source data changes.
 
-### Challenge B — Filters on list
+Pull:
 
-Added optional flags to the `list` command:
-
-* `--os` — Filter by operating system (case-insensitive partial match)
-* `--environment` — Filter by environment (case-insensitive partial match)
-* `--owner` — Filter by owner context (case-insensitive partial match)
-  **Example:**
-
-```bash
-python main.py list --source all --os Windows --environment prod
-```
-
-### Challenge C — Output Formats
-
-Added `--format` flag supporting:
-
-* `--format table` (default) — Human-readable text output
-* `--format json` — Machine-readable JSON for integration with SIEMs or scripts
-  **Example:**
-
-```bash
-python main.py search --query windows --source all --format json
-```
-
-### Challenge D — Find by IP
-
-Added `find-ip` command with exact IP address matching across all sources.
-**Example:**
-
-```bash
-python main.py find-ip --ip 147.149.196.21 --format json
-```
-
----
-
-## Terminal Output
-
-### Pull all sources
-
-```bash
+```text
 $ python main.py pull --source all
 Pulled inventory.
 Stats: {'total': 1343, 'netbox': 408, 'qualys': 384, 'crowdstrike': 551}
 ```
 
-### List one source with filters
+Filtered list:
 
-```bash
+```text
 $ python main.py list --source netbox --os Windows --format table
 [netbox] web-752 ip=147.149.196.21 os=Windows env=dev owner=HR
 [netbox] fw-782 ip=108.34.31.144 os=Windows env=dev owner=Engineering
 [netbox] switch-517 ip=51.160.209.219 os=Windows env=prod owner=Finance
-...
 ```
 
-### Search across all sources
+Search:
 
-```bash
+```text
 $ python main.py search --query windows --source all --limit 10
 Results: 572
 [netbox] web-752 ip=147.149.196.21 os=Windows env=dev owner=HR
 [netbox] fw-782 ip=108.34.31.144 os=Windows env=dev owner=Engineering
 [netbox] switch-517 ip=51.160.209.219 os=Windows env=prod owner=Finance
-...
 ```
 
-### Stats
+Stats:
 
-```bash
+```text
 $ python main.py stats --source all
 Stats: {'total': 1343, 'netbox': 408, 'qualys': 384, 'crowdstrike': 551}
 ```
 
-### Challenge demo — Find by IP (JSON)
+Find by IP (JSON):
 
-```json
+```text
 $ python main.py find-ip --ip 147.149.196.21 --format json
 Results: 1
+```
+
+```json
 [
-{
-"asset_id": "1",
-"hostname": "web-752",
-"ip_address": "147.149.196.21",
-"os": "Windows",
-"environment": "dev",
-"owner_context": "HR",
-"source": "netbox"
-}
+  {
+    "asset_id": "1",
+    "hostname": "web-752",
+    "ip_address": "147.149.196.21",
+    "os": "Windows",
+    "environment": "dev",
+    "owner_context": "HR",
+    "source": "netbox"
+  }
 ]
 ```
