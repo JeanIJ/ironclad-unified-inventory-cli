@@ -123,7 +123,7 @@ A table row looks like this:
 
 ## Status
 
-The Assignment 9 CLI is implemented on this branch of the project:
+The Assignment 9 CLI in this repository implements:
 
 - Pull from one source or all three, then print per-source counts
 - List filters: `--os`, `--environment`, and `--owner`
